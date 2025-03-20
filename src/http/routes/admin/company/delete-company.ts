@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
-import { prisma } from "../../../lib/prisma";
+import { prisma } from "../../../../lib/prisma";
 
 export async function deleteCompany(app: FastifyInstance) {
   app.withTypeProvider<ZodTypeProvider>().delete(

@@ -2,8 +2,8 @@ import { hash } from "bcryptjs";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
-import { prisma } from "../../../lib/prisma";
-import { BadRequestError } from "../_errors/bad-request-error";
+import { prisma } from "../../../../lib/prisma";
+import { BadRequestError } from "../../_errors/bad-request-error";
 
 export async function createUser(app: FastifyInstance) {
   app.withTypeProvider<ZodTypeProvider>().post(
