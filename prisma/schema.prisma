@@ -1,0 +1,140 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Company {
+  id        Int      @id @default(autoincrement()) @map("id")
+  name      String   @map("name")
+  taxId     String?  @unique @map("tax_id")
+  address   String?  @map("address")
+  phone     String?  @map("phone")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  users         User[]
+  customers     Customer[]
+  services      Service[]
+  products      Product[]
+  serviceOrders ServiceOrder[]
+
+  @@map("companies")
+}
+
+model User {
+  id         Int      @id @default(autoincrement()) @map("id")
+  companyId  Int?     @map("company_id")
+  company    Company? @relation(fields: [companyId], references: [id])
+  name       String   @map("name")
+  email      String   @unique @map("email")
+  password   String   @map("password")
+  role       Role     @map("role")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  serviceOrders ServiceOrder[] @relation("ResponsibleUser")
+
+  @@map("users")
+}
+
+enum Role {
+  general_admin
+  manager
+  client
+}
+
+model Customer {
+  id           Int      @id @default(autoincrement()) @map("id")
+  companyId    Int      @map("company_id")
+  company      Company  @relation(fields: [companyId], references: [id])
+  name         String   @map("name")
+  email        String?  @map("email")
+  phone        String?  @map("phone")
+  address      String?  @map("address")
+  registeredAt DateTime @default(now()) @map("registered_at")
+
+  serviceOrders ServiceOrder[]
+
+  @@map("customers")
+}
+
+model Service {
+  id          Int     @id @default(autoincrement()) @map("id")
+  companyId   Int     @map("company_id")
+  company     Company @relation(fields: [companyId], references: [id])
+  description String  @map("description")
+  price       Decimal @db.Decimal(10, 2) @map("price")
+
+  @@map("services")
+}
+
+model Product {
+  id          Int     @id @default(autoincrement()) @map("id")
+  companyId   Int     @map("company_id")
+  company     Company @relation(fields: [companyId], references: [id])
+  description String  @map("description")
+  price       Decimal @db.Decimal(10, 2) @map("price")
+  stock       Int     @default(0) @map("stock")
+
+  @@map("products")
+}
+
+model ServiceOrder {
+  id                  Int         @id @default(autoincrement()) @map("id")
+  companyId           Int         @map("company_id")
+  company             Company     @relation(fields: [companyId], references: [id])
+  customerId          Int         @map("customer_id")
+  customer            Customer    @relation(fields: [customerId], references: [id])
+  responsibleUserId   Int         @map("responsible_user_id")
+  responsibleUser     User        @relation("ResponsibleUser", fields: [responsibleUserId], references: [id])
+
+  deviceBrand         String      @map("device_brand")
+  deviceModel         String      @map("device_model")
+  deviceColor         String?     @map("device_color")
+  deviceImei          String?     @map("device_imei")
+  devicePassword      String?     @map("device_password")
+  deviceCondition     String?     @map("device_condition")
+  deviceAccessories   String?     @map("device_accessories")
+  hasWarranty         Boolean     @default(false) @map("has_warranty")
+  hasInvoice          Boolean     @default(false) @map("has_invoice")
+  openedAt            DateTime    @default(now()) @map("opened_at")
+  closedAt            DateTime?   @map("closed_at")
+  estimatedBudgetDate DateTime?   @map("estimated_budget_date")
+  estimatedPickupDate DateTime?   @map("estimated_pickup_date")
+  status              OrderStatus @default(open) @map("status")
+  notes               String?     @map("notes")
+  responsibilityTerm  String?     @map("responsibility_term")
+  clientSignature     String?     @map("client_signature")
+  technicianSignature String?     @map("technician_signature")
+
+  serviceOrderItems   ServiceOrderItem[]
+
+  @@map("service_orders")
+}
+
+enum OrderStatus {
+  open
+  in_progress
+  completed
+  cancelled
+}
+
+model ServiceOrderItem {
+  id             Int          @id @default(autoincrement()) @map("id")
+  serviceOrderId Int          @map("service_order_id")
+  serviceOrder   ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+  itemType       ItemType     @map("item_type")
+  itemId         Int          @map("item_id")
+  quantity       Int          @default(1) @map("quantity")
+  unitPrice      Decimal      @db.Decimal(10, 2) @map("unit_price")
+  total          Decimal      @db.Decimal(10, 2) @map("total")
+
+  @@map("service_order_items")
+}
+
+enum ItemType {
+  service
+  product
+}
