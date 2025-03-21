@@ -39,6 +39,18 @@ export async function managerGetServiceOrder(app: FastifyInstance) {
             responsibilityTerm: z.string().nullable(),
             clientSignature: z.string().nullable(),
             technicianSignature: z.string().nullable(),
+            serviceOrderItems: z
+              .array(
+                z.object({
+                  id: z.number(),
+                  itemType: z.enum(["service", "product"]),
+                  itemId: z.number(),
+                  quantity: z.number(),
+                  unitPrice: z.number(),
+                  total: z.number(),
+                })
+              )
+              .nullable(),
           }),
         },
       },
@@ -47,19 +59,28 @@ export async function managerGetServiceOrder(app: FastifyInstance) {
       const managerId = await request.getCurrentUserId();
       const companyId = await getManagerCompanyId(managerId);
       const { id } = request.params as { id: string };
+
       const order = await prisma.serviceOrder.findFirst({
         where: { id: Number(id), companyId },
+        include: { serviceOrderItems: true },
       });
       if (!order) {
         throw new BadRequestError("Service order not found");
       }
+
       const transformedOrder = {
         ...order,
         openedAt: order.openedAt.toISOString(),
         closedAt: order.closedAt ? order.closedAt.toISOString() : null,
         estimatedBudgetDate: order.estimatedBudgetDate ? order.estimatedBudgetDate.toISOString() : null,
         estimatedPickupDate: order.estimatedPickupDate ? order.estimatedPickupDate.toISOString() : null,
+        serviceOrderItems: order.serviceOrderItems?.map((item) => ({
+          ...item,
+          unitPrice: item.unitPrice.toNumber(),
+          total: item.total.toNumber(),
+        })) || [],
       };
+
       return reply.send(transformedOrder);
     }
   );

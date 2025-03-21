@@ -24,15 +24,19 @@ export async function managerDeleteServiceOrder(app: FastifyInstance) {
       const managerId = await request.getCurrentUserId();
       const companyId = await getManagerCompanyId(managerId);
       const { id } = request.params as { id: string };
+
       const order = await prisma.serviceOrder.findFirst({
         where: { id: Number(id), companyId },
       });
       if (!order) {
         throw new BadRequestError("Service order not found");
       }
-      await prisma.serviceOrder.delete({
-        where: { id: Number(id) },
-      });
+
+      await prisma.$transaction([
+        prisma.serviceOrderItem.deleteMany({ where: { serviceOrderId: Number(id) } }),
+        prisma.serviceOrder.delete({ where: { id: Number(id) } }),
+      ]);
+
       return reply.status(204).send();
     }
   );

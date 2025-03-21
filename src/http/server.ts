@@ -45,6 +45,8 @@ import { managerListServiceOrders } from "./routes/manager/service-orders/list";
 import { managerGetServiceOrder } from "./routes/manager/service-orders/get";
 import { managerUpdateServiceOrder } from "./routes/manager/service-orders/update";
 import { managerDeleteServiceOrder } from "./routes/manager/service-orders/delete";
+import { createAccount } from "./routes/auth/create-account";
+import { authenticateWithPassword } from "./routes/auth/authenticate-with-password";
 
 export const app = fastify().withTypeProvider<ZodTypeProvider>();
 
@@ -118,6 +120,9 @@ app.register(fastifyJwt, {
 app.register(fastifyCors);
 app.register(fastifyMultipart);
 
+app.register(createAccount);
+app.register(authenticateWithPassword);
+
 app.register(createCompany);
 app.register(getCompanies);
 app.register(getCompany);
@@ -156,6 +161,8 @@ app.register(managerListServiceOrders);
 app.register(managerGetServiceOrder);
 app.register(managerUpdateServiceOrder);
 app.register(managerDeleteServiceOrder);
+
+
 
 
 

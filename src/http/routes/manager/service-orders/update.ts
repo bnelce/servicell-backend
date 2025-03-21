@@ -11,7 +11,7 @@ export async function managerUpdateServiceOrder(app: FastifyInstance) {
     {
       schema: {
         tags: ["Manager - Service Orders"],
-        summary: "Update service order details",
+        summary: "Update service order details with nested items",
         params: z.object({
           id: z.string().regex(/^\d+$/, "Invalid service order ID"),
         }),
@@ -32,6 +32,15 @@ export async function managerUpdateServiceOrder(app: FastifyInstance) {
           clientSignature: z.string().optional(),
           technicianSignature: z.string().optional(),
           status: z.string().optional(),
+          serviceOrderItems: z.array(
+            z.object({
+              id: z.number().optional(), // Se fornecido, atualiza; se não, cria novo
+              itemType: z.enum(["service", "product"]),
+              itemId: z.number(),
+              quantity: z.number(),
+              unitPrice: z.number(),
+            })
+          ).optional(),
         }),
         response: {
           200: z.object({
@@ -57,6 +66,16 @@ export async function managerUpdateServiceOrder(app: FastifyInstance) {
             responsibilityTerm: z.string().nullable(),
             clientSignature: z.string().nullable(),
             technicianSignature: z.string().nullable(),
+            serviceOrderItems: z.array(
+              z.object({
+                id: z.number(),
+                itemType: z.enum(["service", "product"]),
+                itemId: z.number(),
+                quantity: z.number(),
+                unitPrice: z.number(),
+                total: z.number(),
+              })
+            ).nullable(),
           }),
         },
       },
@@ -65,29 +84,76 @@ export async function managerUpdateServiceOrder(app: FastifyInstance) {
       const managerId = await request.getCurrentUserId();
       const companyId = await getManagerCompanyId(managerId);
       const { id } = request.params as { id: string };
-      const data = request.body as any;
-      
-      // Verifica se a ordem pertence à empresa do gerente
-      const order = await prisma.serviceOrder.findFirst({
+      const { serviceOrderItems, ...orderData } = request.body as any;
+
+      // Verifica se a OS pertence à empresa do gerente
+      const existingOrder = await prisma.serviceOrder.findFirst({
         where: { id: Number(id), companyId },
       });
-      if (!order) {
+      if (!existingOrder) {
         throw new BadRequestError("Service order not found");
       }
-      
-      const updatedOrder = await prisma.serviceOrder.update({
-        where: { id: Number(id) },
-        data,
+
+      // Atualiza a OS e seus itens em uma transação
+      const updatedOrder = await prisma.$transaction(async (tx) => {
+        const order = await tx.serviceOrder.update({
+          where: { id: Number(id) },
+          data: orderData,
+        });
+
+        if (serviceOrderItems) {
+          for (const item of serviceOrderItems) {
+            if (item.id) {
+              // Atualiza item existente
+              await tx.serviceOrderItem.update({
+                where: { id: item.id },
+                data: {
+                  quantity: item.quantity,
+                  unitPrice: item.unitPrice,
+                  total: item.unitPrice * item.quantity,
+                },
+              });
+            } else {
+              // Cria novo item
+              await tx.serviceOrderItem.create({
+                data: {
+                  serviceOrderId: order.id,
+                  itemType: item.itemType,
+                  itemId: item.itemId,
+                  quantity: item.quantity,
+                  unitPrice: item.unitPrice,
+                  total: item.unitPrice * item.quantity,
+                },
+              });
+            }
+          }
+          // Opcional: deletar itens que não estejam no payload
+        }
+
+        const updated = await tx.serviceOrder.findUnique({
+          where: { id: order.id },
+          include: { serviceOrderItems: true },
+        });
+        return updated;
       });
-      
+
+      if (!updatedOrder) {
+        throw new BadRequestError("Failed to update service order");
+      }
+
       const transformedOrder = {
         ...updatedOrder,
         openedAt: updatedOrder.openedAt.toISOString(),
         closedAt: updatedOrder.closedAt ? updatedOrder.closedAt.toISOString() : null,
         estimatedBudgetDate: updatedOrder.estimatedBudgetDate ? updatedOrder.estimatedBudgetDate.toISOString() : null,
         estimatedPickupDate: updatedOrder.estimatedPickupDate ? updatedOrder.estimatedPickupDate.toISOString() : null,
+        serviceOrderItems: updatedOrder.serviceOrderItems?.map((item) => ({
+          ...item,
+          unitPrice: item.unitPrice.toNumber(),
+          total: item.total.toNumber(),
+        })) || [],
       };
-      
+
       return reply.send(transformedOrder);
     }
   );
